@@ -1,4 +1,4 @@
-package com.claimsgame.backend.game;
+package com.claimsgame.backend.game.model;
 
 public enum GameStatus {
     WAITING,

@@ -1,6 +1,6 @@
-package com.claimsgame.backend.game.api;
+package com.claimsgame.backend.game.dto;
 
-import com.claimsgame.backend.game.GameStatus;
+import com.claimsgame.backend.game.model.GameStatus;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;

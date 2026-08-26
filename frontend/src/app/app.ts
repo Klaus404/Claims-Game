@@ -51,6 +51,7 @@ export class App {
   readonly round = computed(() => (this.history().length || 0) + 1);
   readonly isLobby = computed(() => this.game()?.status === 'WAITING');
   readonly isOwner = computed(() => this.game()?.ownerId === this.currentPlayerId());
+  readonly winnerName = computed(() => this.players().find(player => player.id === this.game()?.winnerId)?.name ?? 'The table winner');
 
   constructor() {
     const savedCode = localStorage.getItem('claims-game-code');
@@ -78,6 +79,22 @@ export class App {
     this.botName.set('');
   }
 
+  async endGame(): Promise<void> {
+    const game = this.game();
+    if (!game || !confirm('End this game? The active player with the lowest score will win.')) return;
+    await this.request(() => firstValueFrom(this.api.end(game.joinCode)));
+    this.message.set('Game ended. The winner has been recorded.');
+  }
+
+  async leaveRoom(): Promise<void> {
+    const game = this.game();
+    if (!game || !confirm('Leave this room?')) return;
+    try { await firstValueFrom(this.api.leave(game.joinCode)); } catch { /* The local session can still be cleared if the room is unavailable. */ }
+    localStorage.removeItem('claims-game-code');
+    localStorage.removeItem('claims-player-id');
+    this.currentPlayerId.set(''); this.game.set(null); this.history.set([]); this.hands.set({}); this.claimant.set(null); this.message.set('');
+  }
+
   async submitRound(): Promise<void> {
     const game = this.game();
     if (!game) return;
@@ -87,9 +104,11 @@ export class App {
     try {
       const openRound = this.history().find(round => round.status === 'OPEN');
       if (openRound) {
+        if (!openRound.id) return this.error.set('The current round is missing its ID. Refresh the game and try again.');
         await firstValueFrom(this.api.resolveRound(game.joinCode, openRound.id));
       } else {
         const round = await firstValueFrom(this.api.createRound(game.joinCode, scores, this.claimant()));
+        if (!round.id) return this.error.set('The round was saved but did not return an ID. Refresh the game and try again.');
         await firstValueFrom(this.api.resolveRound(game.joinCode, round.id));
       }
       await this.refresh(game.joinCode);
@@ -100,7 +119,14 @@ export class App {
   }
 
   updateHand(id: string, event: Event): void {
-    const value = Math.max(0, Number((event.target as HTMLInputElement).value) || 0);
+    const input = event.target as HTMLInputElement;
+    const value = Number(input.value);
+    if (!Number.isFinite(value) || value < 0) {
+      input.value = '0';
+      this.error.set('Hand points must be 0 or greater.');
+      return;
+    }
+    this.error.set('');
     this.hands.update(hands => ({ ...hands, [id]: value }));
   }
 
@@ -141,7 +167,8 @@ export class App {
   }
 
   private setError(error: unknown): void {
-    const response = error as { error?: { error?: string } };
-    this.error.set(response.error?.error ?? 'Could not reach the game server.');
+    const response = error as { error?: { error?: string; message?: string } | string };
+    const detail = typeof response.error === 'string' ? response.error : response.error?.error ?? response.error?.message;
+    this.error.set(detail ?? 'Could not reach the game server.');
   }
 }

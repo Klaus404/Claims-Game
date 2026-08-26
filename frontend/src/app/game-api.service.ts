@@ -64,6 +64,14 @@ export class GameApiService {
     return this.http.post<GameResponse>(`/api/games/${encodeURIComponent(code)}/bots`, { name }, { headers: { 'X-Player-Id': this.playerId() } });
   }
 
+  end(code: string): Observable<GameResponse> {
+    return this.http.post<GameResponse>(`/api/games/${encodeURIComponent(code)}/end`, {}, { headers: { 'X-Player-Id': this.playerId() } });
+  }
+
+  leave(code: string): Observable<GameResponse> {
+    return this.http.post<GameResponse>(`/api/games/${encodeURIComponent(code)}/leave`, {}, { headers: { 'X-Player-Id': this.playerId() } });
+  }
+
   createRound(code: string, scores: { playerId: string; handPoints: number }[], claimerId: string | null): Observable<RoundResponse> {
     return this.http.post<RoundResponse>(`/api/games/${encodeURIComponent(code)}/rounds`, { scores, claimerId }, { headers: { 'X-Player-Id': this.playerId() } });
   }

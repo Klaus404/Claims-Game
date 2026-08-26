@@ -1,11 +1,12 @@
-package com.claimsgame.backend.game;
+package com.claimsgame.backend.game.controller;
 
-import com.claimsgame.backend.game.api.CreateGameRequest;
-import com.claimsgame.backend.game.api.CreateRoundRequest;
-import com.claimsgame.backend.game.api.AddBotRequest;
-import com.claimsgame.backend.game.api.GameResponse;
-import com.claimsgame.backend.game.api.JoinGameRequest;
-import com.claimsgame.backend.game.api.RoundResponse;
+import com.claimsgame.backend.game.dto.CreateGameRequest;
+import com.claimsgame.backend.game.dto.CreateRoundRequest;
+import com.claimsgame.backend.game.dto.AddBotRequest;
+import com.claimsgame.backend.game.dto.GameResponse;
+import com.claimsgame.backend.game.dto.JoinGameRequest;
+import com.claimsgame.backend.game.dto.RoundResponse;
+import com.claimsgame.backend.game.service.GameService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -38,6 +39,12 @@ public class GameController {
 
     @PostMapping("/{code}/start")
     public GameResponse start(@PathVariable String code, @RequestHeader("X-Player-Id") UUID ownerId) { return service.start(code, ownerId); }
+
+    @PostMapping("/{code}/end")
+    public GameResponse end(@PathVariable String code, @RequestHeader("X-Player-Id") UUID ownerId) { return service.end(code, ownerId); }
+
+    @PostMapping("/{code}/leave")
+    public GameResponse leave(@PathVariable String code, @RequestHeader("X-Player-Id") UUID playerId) { return service.leave(code, playerId); }
 
     @PostMapping("/{code}/bots")
     public GameResponse addBot(@PathVariable String code, @RequestHeader("X-Player-Id") UUID ownerId, @Valid @RequestBody AddBotRequest request) { return service.addBot(code, ownerId, request); }

@@ -1,4 +1,4 @@
-package com.claimsgame.backend.game;
+package com.claimsgame.backend.game.model;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
@@ -64,5 +64,11 @@ public class Game {
     public void addRound(Round round) {
         round.setGame(this);
         rounds.add(round);
+    }
+
+    public void removePlayer(Player player) {
+        players.remove(player);
+        player.setGame(null);
+        players.stream().sorted(java.util.Comparator.comparingInt(Player::getPlayingOrder)).forEach(p -> p.setPlayingOrder(players.indexOf(p)));
     }
 }

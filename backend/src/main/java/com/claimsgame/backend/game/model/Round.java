@@ -1,4 +1,4 @@
-package com.claimsgame.backend.game;
+package com.claimsgame.backend.game.model;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;

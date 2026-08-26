@@ -2,7 +2,7 @@
   <header class="topbar">
     <a class="brand" href="/" aria-label="Claims home"><span class="brand-mark">C</span><span>claims<span class="brand-dot">.</span></span></a>
     @if (game()) {
-      <div class="topbar-actions"><span class="live-state"><span class="live-dot"></span> {{ isLobby() ? 'Waiting room' : 'Live game' }}</span><div class="avatar">{{ players()[0]?.initials }}</div></div>
+      <div class="topbar-actions"><span class="live-state"><span class="live-dot"></span> {{ isLobby() ? 'Waiting room' : game()!.status === 'FINISHED' ? 'Game over' : 'Live game' }}</span>@if (isOwner() && game()!.status === 'IN_PROGRESS') { <button class="end-game-button" type="button" (click)="endGame()">End game</button> }<button class="leave-button" type="button" (click)="leaveRoom()">Leave</button><div class="avatar">{{ players()[0]?.initials }}</div></div>
     }
   </header>
 
@@ -21,7 +21,9 @@
   } @else {
     <main class="page-content">
       <section class="intro-row"><div><p class="eyebrow">CLAIMS / {{ isLobby() ? 'LOBBY' : 'LIVE TABLE' }}</p><h1>Keep your eye<br /><em>on the score.</em></h1></div><div class="game-code-block"><span>GAME CODE</span><strong>{{ game()!.joinCode }}</strong><button type="button" (click)="copyCode()">{{ copied() ? 'Copied' : 'Copy code' }} <span>↗</span></button></div></section>
-      @if (isLobby()) {
+      @if (game()!.status === 'FINISHED') {
+        <section class="game-over-card card"><p class="section-kicker">TABLE CLOSED</p><h2>{{ winnerName() }}<br /><em>wins the game.</em></h2><p>The score is saved. Start a fresh table whenever your group is ready for another hand.</p><button class="resolve-button" type="button" (click)="leaveRoom()"><span>Back to home</span><b>→</b></button></section>
+      } @else if (isLobby()) {
         <section class="lobby-card card"><p class="section-kicker">THE TABLE IS OPEN</p><h2>Invite your people.</h2><p>Share the code above, or fill empty seats with bots. Only the owner enters round results.</p><div class="lobby-players">@for (player of players(); track player.id) { <span class="lobby-seat"><i [style.--player-color]="player.color">{{ player.initials }}</i>{{ player.name }} @if (player.bot) { <small>BOT</small> }</span> }</div>@if (isOwner()) { <div class="bot-row"><input [ngModel]="botName()" (ngModelChange)="botName.set($event)" placeholder="BOT NAME" maxlength="30" /><button type="button" (click)="addBot()" [disabled]="players().length >= 6 || loading()">Add bot +</button></div><button class="resolve-button lobby-start" type="button" (click)="startGame()" [disabled]="players().length < 2 || loading()"><span>{{ players().length < 2 ? 'Waiting for another player' : 'Start the game' }}</span><b>→</b></button> } @else { <p class="owner-note">Waiting for {{ game()!.players[0].name }} to start the game.</p> }@if (error()) { <p class="round-message">{{ error() }}</p> }</section>
       } @else {
         <div class="content-grid">
@@ -34,11 +36,11 @@
             </div>
             <div class="score-footer"><span><i class="legend-dot"></i> Lowest score wins the round</span><span>First to 200 is out <b>↗</b></span></div>
           </section>
-          @if (isOwner()) {
+          @if (isOwner() && game()!.status === 'IN_PROGRESS') {
             <aside class="side-column">
               <section class="round-panel card">
                 <div class="panel-heading compact"><div><p class="section-kicker">ROUND {{ round() }} / NOW</p><h2>Enter the hand</h2></div><span class="timer">● Open</span></div><p class="panel-copy">Add the points in each hand. When someone is under 10, they can call claims.</p>
-                <div class="hand-list">@for (player of players(); track player.id) { <label class="hand-input" [class.my-hand]="player.current"><span class="mini-avatar" [style.--player-color]="player.color">{{ player.initials }}</span><span class="hand-name">{{ player.name }} @if (player.current) { <small>YOU</small> }</span><input type="number" min="0" max="100" [value]="player.hand" (input)="updateHand(player.id, $event)" aria-label="Hand points" /></label> }</div>
+                <div class="hand-list">@for (player of players(); track player.id) { <label class="hand-input" [class.my-hand]="player.current"><span class="mini-avatar" [style.--player-color]="player.color">{{ player.initials }}</span><span class="hand-name">{{ player.name }} @if (player.current) { <small>YOU</small> }</span><input type="number" min="0" step="1" [value]="player.hand" (input)="updateHand(player.id, $event)" aria-label="Hand points" /></label> }</div>
                 <div class="claim-toggle"><div><strong>Someone called claims?</strong><span>Mark the caller to reveal hands</span></div><button type="button" class="switch" [class.on]="claimant() !== null" (click)="toggleClaim()" [attr.aria-pressed]="claimant() !== null"><span></span></button></div>
                 @if (claimant() !== null) { <div class="claimant-select"><span>Caller</span><select [value]="claimant()" (change)="setClaimant($event)">@for (player of players(); track player.id) { <option [value]="player.id">{{ player.name }}</option> }</select></div> }
                 <button type="button" class="resolve-button" (click)="submitRound()" [disabled]="loading()"><span>{{ loading() ? 'Syncing...' : 'Resolve round' }}</span><b>→</b></button>@if (error() || message()) { <p class="round-message">{{ error() || message() }}</p> }

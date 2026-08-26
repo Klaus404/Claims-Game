@@ -1,4 +1,4 @@
-package com.claimsgame.backend.game.api;
+package com.claimsgame.backend.game.dto;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;

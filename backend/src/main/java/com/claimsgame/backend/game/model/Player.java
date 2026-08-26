@@ -1,4 +1,4 @@
-package com.claimsgame.backend.game;
+package com.claimsgame.backend.game.model;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -43,9 +43,11 @@ public class Player {
     public UUID getId() { return id; }
     public String getName() { return name; }
     public int getPlayingOrder() { return playingOrder; }
+    public void setPlayingOrder(int playingOrder) { this.playingOrder = playingOrder; }
     public int getTotalScore() { return totalScore; }
     public int getStarStreak() { return starStreak; }
     public boolean isEliminated() { return eliminated; }
+    public void setEliminated(boolean eliminated) { this.eliminated = eliminated; }
     public boolean isBot() { return bot; }
     public Game getGame() { return game; }
     public void setGame(Game game) { this.game = game; }

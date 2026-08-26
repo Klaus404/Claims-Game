@@ -1,4 +1,6 @@
-package com.claimsgame.backend.game;
+package com.claimsgame.backend.game.dao;
+
+import com.claimsgame.backend.game.model.Round;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;

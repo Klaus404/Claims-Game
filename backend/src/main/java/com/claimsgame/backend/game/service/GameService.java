@@ -1,11 +1,19 @@
-package com.claimsgame.backend.game;
+package com.claimsgame.backend.game.service;
 
-import com.claimsgame.backend.game.api.CreateGameRequest;
-import com.claimsgame.backend.game.api.CreateRoundRequest;
-import com.claimsgame.backend.game.api.GameResponse;
-import com.claimsgame.backend.game.api.JoinGameRequest;
-import com.claimsgame.backend.game.api.AddBotRequest;
-import com.claimsgame.backend.game.api.RoundResponse;
+import com.claimsgame.backend.game.dao.GameRepository;
+import com.claimsgame.backend.game.dao.RoundRepository;
+import com.claimsgame.backend.game.dto.AddBotRequest;
+import com.claimsgame.backend.game.dto.CreateGameRequest;
+import com.claimsgame.backend.game.dto.CreateRoundRequest;
+import com.claimsgame.backend.game.dto.GameResponse;
+import com.claimsgame.backend.game.dto.JoinGameRequest;
+import com.claimsgame.backend.game.dto.RoundResponse;
+import com.claimsgame.backend.game.model.Game;
+import com.claimsgame.backend.game.model.GameStatus;
+import com.claimsgame.backend.game.model.Player;
+import com.claimsgame.backend.game.model.Round;
+import com.claimsgame.backend.game.model.RoundPlayerScore;
+import com.claimsgame.backend.game.model.RoundStatus;
 import jakarta.transaction.Transactional;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -75,6 +83,39 @@ public class GameService {
     }
 
     @Transactional
+    public GameResponse end(String code, UUID ownerId) {
+        Game game = getGame(code);
+        authorizeOwner(game, ownerId);
+        if (game.getStatus() != GameStatus.IN_PROGRESS) throw new IllegalStateException("Only an active game can be ended");
+        Player winner = activePlayers(game).stream()
+                .sorted(Comparator.comparingInt(Player::getTotalScore).thenComparingInt(Player::getPlayingOrder))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("There are no active players"));
+        game.setWinnerId(winner.getId());
+        game.setStatus(GameStatus.FINISHED);
+        return view(game);
+    }
+
+    @Transactional
+    public GameResponse leave(String code, UUID playerId) {
+        Game game = getGame(code);
+        Player leaving = player(game, playerId);
+        boolean wasOwner = playerId.equals(game.getOwnerId());
+        if (game.getStatus() == GameStatus.WAITING) {
+            game.removePlayer(leaving);
+            if (wasOwner) game.setOwnerId(game.getPlayers().stream().findFirst().map(Player::getId).orElse(null));
+            return view(game);
+        }
+        leaving.setEliminated(true);
+        if (wasOwner) game.setOwnerId(activePlayers(game).stream().findFirst().map(Player::getId).orElse(null));
+        if (game.getStatus() == GameStatus.IN_PROGRESS && activePlayers(game).size() <= 1) {
+            game.setWinnerId(activePlayers(game).stream().findFirst().map(Player::getId).orElse(null));
+            game.setStatus(GameStatus.FINISHED);
+        }
+        return view(game);
+    }
+
+    @Transactional
     public GameResponse get(String code) {
         return view(getGame(code));
     }
@@ -89,6 +130,7 @@ public class GameService {
         }
         List<Player> active = activePlayers(game);
         if (request.scores().size() != active.size()) throw new IllegalArgumentException("A score is required for every active player");
+        if (request.scores().stream().anyMatch(score -> score.handPoints() < 0)) throw new IllegalArgumentException("Hand points must be 0 or greater");
         List<UUID> ids = request.scores().stream().map(s -> s.playerId()).toList();
         if (ids.stream().distinct().count() != ids.size() || active.stream().anyMatch(p -> !ids.contains(p.getId()))) {
             throw new IllegalArgumentException("Scores must contain each active player exactly once");
@@ -99,9 +141,10 @@ public class GameService {
             throw new IllegalArgumentException("Claims can only be declared below 10 points");
         }
         Round round = new Round(game.getRounds().size() + 1, claimer);
-        request.scores().forEach(score -> round.addScore(new com.claimsgame.backend.game.RoundPlayerScore(player(game, score.playerId()), score.handPoints())));
+        request.scores().forEach(score -> round.addScore(new RoundPlayerScore(player(game, score.playerId()), score.handPoints())));
         game.addRound(round);
         games.save(game);
+        rounds.saveAndFlush(round);
         return response(round);
     }
 
@@ -112,14 +155,14 @@ public class GameService {
         Round round = rounds.findByIdAndGameId(roundId, game.getId()).orElseThrow(() -> new IllegalArgumentException("Round not found"));
         if (round.getStatus() != RoundStatus.OPEN) throw new IllegalStateException("Round is already resolved");
         List<Player> active = activePlayers(game);
-        int minimum = round.getScores().stream().filter(s -> active.contains(s.getPlayer())).mapToInt(com.claimsgame.backend.game.RoundPlayerScore::getHandPoints).min().orElseThrow();
+        int minimum = round.getScores().stream().filter(s -> active.contains(s.getPlayer())).mapToInt(RoundPlayerScore::getHandPoints).min().orElseThrow();
         Player starPlayer = null;
         if (round.getClaimer() != null) {
             List<Player> tied = round.getScores().stream().filter(s -> active.contains(s.getPlayer()) && s.getHandPoints() == minimum)
-                    .map(com.claimsgame.backend.game.RoundPlayerScore::getPlayer).sorted(Comparator.comparingInt(Player::getPlayingOrder)).toList();
+                    .map(RoundPlayerScore::getPlayer).sorted(Comparator.comparingInt(Player::getPlayingOrder)).toList();
             starPlayer = tied.size() == 1 ? tied.getFirst() : nextTiedAfter(round.getClaimer(), tied, active.size());
         }
-        for (com.claimsgame.backend.game.RoundPlayerScore score : round.getScores()) {
+        for (RoundPlayerScore score : round.getScores()) {
             Player player = score.getPlayer();
             boolean star = player == starPlayer;
             int points = round.getClaimer() == null || starPlayer == round.getClaimer() ? score.getHandPoints() : (player == round.getClaimer() ? 50 : 0);

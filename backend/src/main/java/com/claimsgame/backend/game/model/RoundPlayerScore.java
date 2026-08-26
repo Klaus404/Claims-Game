@@ -1,4 +1,4 @@
-package com.claimsgame.backend.game;
+package com.claimsgame.backend.game.model;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
