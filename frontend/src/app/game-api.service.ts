@@ -9,6 +9,7 @@ export interface PlayerResponse {
   totalScore: number;
   starStreak: number;
   eliminated: boolean;
+  eliminationOrder: number | null;
   bot: boolean;
 }
 
@@ -37,6 +38,8 @@ export interface RoundResponse {
   createdAt: string;
   status: 'OPEN' | 'RESOLVED';
   claimerId: string | null;
+  winnerId: string | null;
+  winnerName: string | null;
   scores: RoundScoreResponse[];
 }
 
@@ -82,6 +85,14 @@ export class GameApiService {
 
   history(code: string): Observable<RoundResponse[]> {
     return this.http.get<RoundResponse[]>(`/api/games/${encodeURIComponent(code)}/rounds`);
+  }
+
+  clearLastRound(code: string): Observable<GameResponse> {
+    return this.http.delete<GameResponse>(`/api/games/${encodeURIComponent(code)}/rounds/last`, { headers: { 'X-Player-Id': this.playerId() } });
+  }
+
+  editLastRound(code: string, scores: { playerId: string; handPoints: number }[], claimerId: string | null): Observable<RoundResponse> {
+    return this.http.put<RoundResponse>(`/api/games/${encodeURIComponent(code)}/rounds/last`, { scores, claimerId }, { headers: { 'X-Player-Id': this.playerId() } });
   }
 
   private playerId(): string { return localStorage.getItem('claims-player-id') ?? ''; }

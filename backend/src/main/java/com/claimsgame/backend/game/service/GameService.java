@@ -143,8 +143,7 @@ public class GameService {
         Round round = new Round(game.getRounds().size() + 1, claimer);
         request.scores().forEach(score -> round.addScore(new RoundPlayerScore(player(game, score.playerId()), score.handPoints())));
         game.addRound(round);
-        games.save(game);
-        rounds.saveAndFlush(round);
+        games.saveAndFlush(game);
         return response(round);
     }
 
@@ -164,10 +163,15 @@ public class GameService {
         }
         for (RoundPlayerScore score : round.getScores()) {
             Player player = score.getPlayer();
+            score.capturePreviousState(player);
             boolean star = player == starPlayer;
             int points = round.getClaimer() == null || starPlayer == round.getClaimer() ? score.getHandPoints() : (player == round.getClaimer() ? 50 : 0);
             int before = player.getTotalScore();
+            boolean wasEliminated = player.isEliminated();
             player.apply(points, star);
+            if (!wasEliminated && player.isEliminated()) {
+                player.setEliminationOrder(game.getPlayers().stream().map(Player::getEliminationOrder).filter(java.util.Objects::nonNull).max(Integer::compareTo).orElse(0) + 1);
+            }
             int penalty = player.getTotalScore() - before - points;
             score.resolve(points + penalty, star, penalty);
         }
@@ -185,6 +189,36 @@ public class GameService {
     }
 
     @Transactional
+    public GameResponse clearLastRound(String code, UUID ownerId) {
+        Game game = getGame(code);
+        authorizeOwner(game, ownerId);
+        Round round = lastResolvedRound(game);
+        restoreRound(round);
+        game.getRounds().remove(round);
+        rounds.delete(round);
+        game.setWinnerId(null);
+        game.setStatus(GameStatus.IN_PROGRESS);
+        return view(games.saveAndFlush(game));
+    }
+
+    @Transactional
+    public RoundResponse editLastRound(String code, UUID ownerId, CreateRoundRequest request) {
+        Game game = getGame(code);
+        authorizeOwner(game, ownerId);
+        Round round = lastResolvedRound(game);
+        restoreRound(round);
+        validateRoundRequest(game, request);
+        game.setWinnerId(null);
+        game.setStatus(GameStatus.IN_PROGRESS);
+        round.setClaimer(request.claimerId() == null ? null : player(game, request.claimerId()));
+        for (var score : round.getScores()) {
+            score.setHandPoints(request.scores().stream().filter(item -> item.playerId().equals(score.getPlayer().getId())).findFirst().orElseThrow().handPoints());
+        }
+        round.setStatus(RoundStatus.OPEN);
+        return resolve(code, ownerId, round.getId());
+    }
+
+    @Transactional
     public List<RoundResponse> history(String code) {
         return getGame(code).getRounds().stream().map(this::response).toList();
     }
@@ -196,15 +230,35 @@ public class GameService {
     private void authorizeOwner(Game game, UUID ownerId) { if (!ownerId.equals(game.getOwnerId())) throw new IllegalStateException("Only the game owner can do this"); }
     private List<Player> activePlayers(Game game) { return game.getPlayers().stream().filter(p -> !p.isEliminated()).toList(); }
     private Player player(Game game, UUID id) { return game.getPlayers().stream().filter(p -> p.getId().equals(id)).findFirst().orElseThrow(() -> new IllegalArgumentException("Player does not belong to this game")); }
+    private Round lastResolvedRound(Game game) { return game.getRounds().stream().filter(r -> r.getStatus() == RoundStatus.RESOLVED).max(Comparator.comparingInt(Round::getRoundNumber)).orElseThrow(() -> new IllegalStateException("There is no resolved round to edit")); }
+    private void restoreRound(Round round) {
+        for (RoundPlayerScore score : round.getScores()) {
+            if (score.getPreviousTotalScore() != null) {
+                score.getPlayer().restore(score.getPreviousTotalScore(), score.getPreviousStarStreak(), score.getPreviousEliminated());
+                if (!score.getPreviousEliminated()) score.getPlayer().setEliminationOrder(null);
+            }
+            else score.getPlayer().restore(score.getPlayer().getTotalScore() - score.getAwardedPoints(), 0, false);
+        }
+    }
+    private void validateRoundRequest(Game game, CreateRoundRequest request) {
+        List<Player> active = activePlayers(game);
+        if (request.scores().size() != active.size()) throw new IllegalArgumentException("A score is required for every active player");
+        List<UUID> ids = request.scores().stream().map(s -> s.playerId()).toList();
+        if (ids.stream().distinct().count() != ids.size() || active.stream().anyMatch(p -> !ids.contains(p.getId()))) throw new IllegalArgumentException("Scores must contain each active player exactly once");
+        Player claimer = request.claimerId() == null ? null : player(game, request.claimerId());
+        if (claimer != null && request.scores().stream().filter(s -> s.playerId().equals(claimer.getId())).findFirst().orElseThrow().handPoints() >= 10) throw new IllegalArgumentException("Claims can only be declared below 10 points");
+    }
     private Game getGame(String code) { return games.findByJoinCode(code.toUpperCase()).orElseThrow(() -> new IllegalArgumentException("Game not found")); }
     private String cleanName(String name) { String value = name.trim(); if (value.isEmpty() || value.length() > 30) throw new IllegalArgumentException("Player name must be 1 to 30 characters"); return value; }
     private String randomCode() { StringBuilder code = new StringBuilder(6); for (int i = 0; i < 6; i++) code.append(CODE_ALPHABET.charAt(ThreadLocalRandom.current().nextInt(CODE_ALPHABET.length()))); return code.toString(); }
 
     private GameResponse view(Game game) {
-        return new GameResponse(game.getId(), game.getJoinCode(), game.getCreatedAt(), game.getStatus(), game.getOwnerId(), game.getPlayers().stream().sorted(Comparator.comparingInt(Player::getPlayingOrder)).map(p -> new GameResponse.PlayerResponse(p.getId(), p.getName(), p.getPlayingOrder(), p.getTotalScore(), p.getStarStreak(), p.isEliminated(), p.isBot())).toList(), game.getWinnerId());
+        return new GameResponse(game.getId(), game.getJoinCode(), game.getCreatedAt(), game.getStatus(), game.getOwnerId(), game.getPlayers().stream().sorted(Comparator.comparingInt(Player::getPlayingOrder)).map(p -> new GameResponse.PlayerResponse(p.getId(), p.getName(), p.getPlayingOrder(), p.getTotalScore(), p.getStarStreak(), p.isEliminated(), p.getEliminationOrder(), p.isBot())).toList(), game.getWinnerId());
     }
 
     private RoundResponse response(Round round) {
-        return new RoundResponse(round.getId(), round.getRoundNumber(), round.getCreatedAt(), round.getStatus(), round.getClaimer() == null ? null : round.getClaimer().getId(), round.getScores().stream().map(s -> new RoundResponse.ScoreResponse(s.getPlayer().getId(), s.getPlayer().getName(), s.getHandPoints(), s.getAwardedPoints(), s.isReceivedStar(), s.getStarPenalty())).toList());
+        var scores = round.getScores().stream().map(s -> new RoundResponse.ScoreResponse(s.getPlayer().getId(), s.getPlayer().getName(), s.getHandPoints(), s.getAwardedPoints(), s.isReceivedStar(), s.getStarPenalty())).toList();
+        var winner = scores.stream().filter(RoundResponse.ScoreResponse::receivedStar).findFirst().orElse(scores.stream().min(Comparator.comparingInt(RoundResponse.ScoreResponse::handPoints)).orElse(null));
+        return new RoundResponse(round.getId(), round.getRoundNumber(), round.getCreatedAt(), round.getStatus(), round.getClaimer() == null ? null : round.getClaimer().getId(), winner == null ? null : winner.playerId(), winner == null ? null : winner.playerName(), scores);
     }
 }

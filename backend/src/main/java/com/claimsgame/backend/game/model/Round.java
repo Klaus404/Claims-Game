@@ -56,6 +56,7 @@ public class Round {
     public Player getClaimer() { return claimer; }
     public List<RoundPlayerScore> getScores() { return scores; }
     public void setGame(Game game) { this.game = game; }
+    public void setClaimer(Player claimer) { this.claimer = claimer; }
     public void setStatus(RoundStatus status) { this.status = status; }
     public void addScore(RoundPlayerScore score) { score.setRound(this); scores.add(score); }
 }

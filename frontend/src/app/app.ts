@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { GameApiService, GameResponse, RoundResponse } from './game-api.service';
@@ -13,6 +13,7 @@ interface PlayerView {
   color: string;
   current: boolean;
   eliminated: boolean;
+  eliminationOrder: number | null;
   bot: boolean;
 }
 
@@ -22,7 +23,7 @@ interface PlayerView {
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
-export class App {
+export class App implements OnDestroy {
   private readonly api = inject(GameApiService);
   readonly game = signal<GameResponse | null>(null);
   readonly history = signal<RoundResponse[]>([]);
@@ -36,6 +37,10 @@ export class App {
   readonly loading = signal(false);
   readonly error = signal('');
   readonly message = signal('');
+  readonly editingLastRound = signal(false);
+  readonly spectating = signal(false);
+  private syncing = false;
+  private readonly syncTimer = window.setInterval(() => this.syncGame(), 3000);
   readonly players = computed<PlayerView[]>(() => (this.game()?.players ?? []).map((player, index) => ({
     id: player.id,
     name: player.name,
@@ -46,16 +51,29 @@ export class App {
     color: ['#d9a84e', '#e87e62', '#7f9be8', '#9cbf78', '#ca83bc', '#7db9b0'][index % 6],
     current: player.id === this.currentPlayerId(),
     eliminated: player.eliminated,
+    eliminationOrder: player.eliminationOrder,
     bot: player.bot,
   })));
   readonly round = computed(() => (this.history().length || 0) + 1);
   readonly isLobby = computed(() => this.game()?.status === 'WAITING');
   readonly isOwner = computed(() => this.game()?.ownerId === this.currentPlayerId());
   readonly winnerName = computed(() => this.players().find(player => player.id === this.game()?.winnerId)?.name ?? 'The table winner');
+  readonly currentPlayer = computed(() => this.players().find(player => player.id === this.currentPlayerId()));
+  readonly isEliminated = computed(() => this.currentPlayer()?.eliminated ?? false);
+  readonly leaderboard = computed(() => this.players().slice().sort((a, b) => {
+    if (a.id === this.game()?.winnerId) return -1;
+    if (b.id === this.game()?.winnerId) return 1;
+    if (a.eliminated !== b.eliminated) return a.eliminated ? 1 : -1;
+    return (b.eliminationOrder ?? 0) - (a.eliminationOrder ?? 0);
+  }));
 
   constructor() {
     const savedCode = localStorage.getItem('claims-game-code');
     if (savedCode) this.loadGame(savedCode);
+  }
+
+  ngOnDestroy(): void {
+    window.clearInterval(this.syncTimer);
   }
 
   async createGame(): Promise<void> {
@@ -103,7 +121,9 @@ export class App {
     this.loading.set(true); this.error.set('');
     try {
       const openRound = this.history().find(round => round.status === 'OPEN');
-      if (openRound) {
+      if (this.editingLastRound()) {
+        await firstValueFrom(this.api.editLastRound(game.joinCode, scores, this.claimant()));
+      } else if (openRound) {
         if (!openRound.id) return this.error.set('The current round is missing its ID. Refresh the game and try again.');
         await firstValueFrom(this.api.resolveRound(game.joinCode, openRound.id));
       } else {
@@ -115,6 +135,7 @@ export class App {
       this.message.set('Round resolved and scoreboard synced.');
       this.claimant.set(null);
       this.hands.set({});
+      this.editingLastRound.set(false);
     } catch (error) { this.setError(error); } finally { this.loading.set(false); }
   }
 
@@ -139,6 +160,27 @@ export class App {
     this.copied.set(true); window.setTimeout(() => this.copied.set(false), 1800);
   }
 
+  beginEditLastRound(): void {
+    const last = this.history()[this.history().length - 1];
+    if (!last) return;
+    this.hands.set(Object.fromEntries(last.scores.map(score => [score.playerId, score.handPoints])));
+    this.claimant.set(last.claimerId);
+    this.editingLastRound.set(true);
+    this.message.set('Edit the hand values, then save the round.');
+  }
+
+  spectateGame(): void { this.spectating.set(true); }
+
+  async clearLastRound(): Promise<void> {
+    const game = this.game();
+    if (!game || !this.history().length || !confirm('Clear the last round and restore the previous scores?')) return;
+    await this.request(() => firstValueFrom(this.api.clearLastRound(game.joinCode)));
+    this.hands.set({});
+    this.claimant.set(null);
+    this.editingLastRound.set(false);
+    this.message.set('Last round cleared.');
+  }
+
   private async loadGame(code: string): Promise<void> {
     await this.request(() => firstValueFrom(this.api.get(code)));
     await this.refresh(code);
@@ -150,6 +192,21 @@ export class App {
     localStorage.setItem('claims-game-code', game.joinCode);
     const knownPlayer = game.players.find(player => player.id === this.currentPlayerId());
     if (knownPlayer) localStorage.setItem('claims-player-id', knownPlayer.id);
+  }
+
+  private async syncGame(): Promise<void> {
+    if (this.syncing || this.loading()) return;
+    const code = this.game()?.joinCode ?? localStorage.getItem('claims-game-code');
+    if (!code) return;
+
+    this.syncing = true;
+    try {
+      await this.refresh(code);
+    } catch {
+      // Background sync retries on the next interval without interrupting the current UI.
+    } finally {
+      this.syncing = false;
+    }
   }
 
   private async request(request: () => Promise<GameResponse>, identify = false): Promise<void> {

@@ -12,8 +12,10 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -58,4 +60,10 @@ public class GameController {
 
     @GetMapping("/{code}/rounds")
     public List<RoundResponse> history(@PathVariable String code) { return service.history(code); }
+
+    @DeleteMapping("/{code}/rounds/last")
+    public GameResponse clearLastRound(@PathVariable String code, @RequestHeader("X-Player-Id") UUID ownerId) { return service.clearLastRound(code, ownerId); }
+
+    @PutMapping("/{code}/rounds/last")
+    public RoundResponse editLastRound(@PathVariable String code, @RequestHeader("X-Player-Id") UUID ownerId, @Valid @RequestBody CreateRoundRequest request) { return service.editLastRound(code, ownerId, request); }
 }

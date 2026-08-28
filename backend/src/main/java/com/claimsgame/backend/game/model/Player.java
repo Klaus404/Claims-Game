@@ -22,6 +22,7 @@ public class Player {
     private int totalScore;
     private int starStreak;
     private boolean eliminated;
+    private Integer eliminationOrder;
     private boolean bot;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -47,6 +48,8 @@ public class Player {
     public int getTotalScore() { return totalScore; }
     public int getStarStreak() { return starStreak; }
     public boolean isEliminated() { return eliminated; }
+    public Integer getEliminationOrder() { return eliminationOrder; }
+    public void setEliminationOrder(Integer eliminationOrder) { this.eliminationOrder = eliminationOrder; }
     public void setEliminated(boolean eliminated) { this.eliminated = eliminated; }
     public boolean isBot() { return bot; }
     public Game getGame() { return game; }
@@ -64,5 +67,11 @@ public class Player {
             starStreak = 0;
         }
         eliminated = totalScore > 200;
+    }
+
+    public void restore(int totalScore, int starStreak, boolean eliminated) {
+        this.totalScore = totalScore;
+        this.starStreak = starStreak;
+        this.eliminated = eliminated;
     }
 }

@@ -1,6 +1,9 @@
 :host { display: block; min-height: 100vh; }
 .app-shell { min-height: 100vh; background: var(--ink); color: var(--paper); overflow: hidden; position: relative; }
 .end-game-button, .leave-button { color: var(--muted); background: transparent; border: 1px solid rgba(232,236,221,.2); padding: 8px 11px; font-size: 10px; cursor: pointer; }.end-game-button:hover, .leave-button:hover { color: var(--paper); border-color: var(--gold); }
+.history-points { display: block; color: var(--gold); font: 10px var(--mono); line-height: 1.7; margin-top: 5px; }
+.history-actions { display: flex; gap: 8px; border-top: 1px solid rgba(232,236,221,.09); padding-top: 15px; margin-top: 3px; }.history-actions button { color: var(--gold); background: transparent; border: 1px solid rgba(216,183,100,.5); padding: 9px 11px; cursor: pointer; font-size: 10px; }.history-actions button:hover { color: var(--ink); background: var(--gold); }
+.leaderboard { margin: 30px 0; border-top: 1px solid rgba(232,236,221,.1); }.leaderboard-row { display: grid; grid-template-columns: 32px 1fr auto 75px; gap: 12px; align-items: center; padding: 15px 0; border-bottom: 1px solid rgba(232,236,221,.1); }.leaderboard-rank, .leaderboard-row small { color: var(--muted); font: 11px var(--mono); }.leaderboard-row small { font: 9px var(--mono); letter-spacing: .1em; }.leaderboard-row b { color: var(--gold); font: 14px var(--mono); text-align: right; }.loser-actions { display: flex; gap: 10px; align-items: center; }.loser-actions .resolve-button { margin: 0; }.loser-actions .leave-button { padding: 17px 25px; }
 .hand-input input[type='number'] { appearance: textfield; -moz-appearance: textfield; }
 .hand-input input[type='number']::-webkit-inner-spin-button,
 .hand-input input[type='number']::-webkit-outer-spin-button { appearance: none; -webkit-appearance: none; margin: 0; }
