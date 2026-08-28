@@ -16,6 +16,7 @@ interface PlayerView {
   eliminationOrder: number | null;
   icon: string;
   bot: boolean;
+  iconLocked: boolean;
 }
 
 @Component({
@@ -55,6 +56,7 @@ export class App implements OnDestroy {
     eliminationOrder: player.eliminationOrder,
     icon: player.icon,
     bot: player.bot,
+    iconLocked: player.name.trim().toLowerCase() === 'gaulea',
   })));
   readonly round = computed(() => (this.history().length || 0) + 1);
   readonly isLobby = computed(() => this.game()?.status === 'WAITING');
@@ -122,7 +124,7 @@ export class App implements OnDestroy {
   async randomizeIcon(): Promise<void> {
     const game = this.game();
     const player = this.currentPlayer();
-    if (!game || !player || !this.isLobby() || this.loading()) return;
+    if (!game || !player || player.iconLocked || !this.isLobby() || this.loading()) return;
     const icons = ['hedgehog', 'sloth', 'tiger', 'parrot', 'elephant', 'fox', 'chick', 'dog', 'turtle', 'lion', 'icons8-bear-94', 'icons8-koi-fish-94', 'icons8-corgi-94', 'icons8-cockroach-94'];
     const icon = icons[(icons.indexOf(player.icon) + 1) % icons.length];
     await this.request(() => firstValueFrom(this.api.updateIcon(game.joinCode, player.id, icon)));
@@ -152,11 +154,21 @@ export class App implements OnDestroy {
         await firstValueFrom(this.api.resolveRound(game.joinCode, openRound.id));
       } else {
         const round = await firstValueFrom(this.api.createRound(game.joinCode, scores, this.claimant()));
-        if (!round.id) return this.error.set('The round was saved but did not return an ID. Refresh the game and try again.');
-        await firstValueFrom(this.api.resolveRound(game.joinCode, round.id));
+        const createdRound = round.id
+          ? round
+          : (await firstValueFrom(this.api.history(game.joinCode))).find(item => item.status === 'OPEN');
+        if (!createdRound?.id) return this.error.set('The round was saved but could not be resolved. Try again.');
+        try {
+          await firstValueFrom(this.api.resolveRound(game.joinCode, createdRound.id));
+        } catch (error) {
+          // Recover if creation committed but the first resolve request raced the transaction.
+          const pendingRound = (await firstValueFrom(this.api.history(game.joinCode))).find(item => item.status === 'OPEN');
+          if (!pendingRound?.id) throw error;
+          await firstValueFrom(this.api.resolveRound(game.joinCode, pendingRound.id));
+        }
       }
       await this.refresh(game.joinCode);
-      this.message.set('Round resolved and scoreboard synced.');
+      this.message.set('Round saved.');
       this.claimant.set(null);
       this.hands.set({});
       this.editingLastRound.set(false);
@@ -252,4 +264,5 @@ export class App implements OnDestroy {
     const detail = typeof response.error === 'string' ? response.error : response.error?.error ?? response.error?.message;
     this.error.set(detail ?? 'Could not reach the game server.');
   }
+
 }

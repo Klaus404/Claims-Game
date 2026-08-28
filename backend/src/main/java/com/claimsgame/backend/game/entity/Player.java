@@ -9,6 +9,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.util.UUID;
+import java.util.Locale;
 
 @Entity
 @Table(name = "players", uniqueConstraints = @UniqueConstraint(columnNames = {"game_id", "playing_order"}))
@@ -36,7 +37,7 @@ public class Player {
     public Player(String name, int playingOrder) {
         this.name = name;
         this.playingOrder = playingOrder;
-        this.icon = defaultIcon(playingOrder);
+        this.icon = iconForName(name, defaultIcon(playingOrder));
     }
 
     public Player(String name, int playingOrder, boolean bot) {
@@ -47,6 +48,8 @@ public class Player {
     public UUID getId() { return id; }
     public String getName() { return name; }
     public String getIcon() { return icon; }
+    public boolean hasLockedIcon() { return name.trim().equalsIgnoreCase("gaulea"); }
+    public String getEffectiveIcon() { return icon; }
     public int getPlayingOrder() { return playingOrder; }
     public void setPlayingOrder(int playingOrder) { this.playingOrder = playingOrder; }
     public void setIcon(String icon) { this.icon = icon; }
@@ -84,5 +87,12 @@ public class Player {
 
     private static String defaultIcon(int playingOrder) {
         return new String[]{"hedgehog", "sloth", "tiger", "parrot", "elephant", "fox", "chick", "dog", "turtle", "lion", "icons8-bear-94", "icons8-koi-fish-94", "icons8-corgi-94", "icons8-cockroach-94"}[playingOrder % 14];
+    }
+
+    private static String iconForName(String name, String fallback) {
+        String normalized = name.trim().toLowerCase(Locale.ROOT);
+        if (normalized.equals("yama tasula") || normalized.equals("yako yu kumana")) return "icons8-samurai-60";
+        if (normalized.equals("gaulea")) return "icons8-cockroach-94";
+        return fallback;
     }
 }

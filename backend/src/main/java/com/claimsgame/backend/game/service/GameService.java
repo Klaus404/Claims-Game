@@ -26,7 +26,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class GameService {
     private static final String CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    private static final java.util.Set<String> ICONS = java.util.Set.of("hedgehog", "sloth", "tiger", "parrot", "elephant", "fox", "chick", "dog", "turtle", "lion", "icons8-bear-94", "icons8-koi-fish-94", "icons8-corgi-94", "icons8-cockroach-94");
+    private static final java.util.Set<String> ICONS = java.util.Set.of("hedgehog", "sloth", "tiger", "parrot", "elephant", "fox", "chick", "dog", "turtle", "lion", "icons8-bear-94", "icons8-koi-fish-94", "icons8-corgi-94", "icons8-cockroach-94", "icons8-samurai-60");
     private final GameRepository games;
     private final RoundRepository rounds;
 
@@ -150,6 +150,11 @@ public class GameService {
         if (game.getStatus() != GameStatus.WAITING) throw new IllegalStateException("Icons can only be changed in the lobby");
         if (!ICONS.contains(request.icon())) throw new IllegalArgumentException("Unknown player icon");
         Player player = player(game, playerId);
+        if (player.hasLockedIcon()) throw new IllegalStateException("This player's icon is locked by their name");
+        if (request.icon().equals("icons8-samurai-60") && !player.getName().trim().equalsIgnoreCase("yama tasula")
+                && !player.getName().trim().equalsIgnoreCase("yako yu kumana")) {
+            throw new IllegalArgumentException("The samurai icon is reserved for Yama Tasula and Yako Yu Kumana");
+        }
         player.setIcon(request.icon());
         return view(games.saveAndFlush(game));
     }
@@ -183,6 +188,7 @@ public class GameService {
         request.scores().forEach(score -> round.addScore(new RoundPlayerScore(player(game, score.playerId()), score.handPoints())));
         game.addRound(round);
         games.saveAndFlush(game);
+        rounds.saveAndFlush(round);
         return response(round);
     }
 
@@ -204,7 +210,9 @@ public class GameService {
             Player player = score.getPlayer();
             score.capturePreviousState(player);
             boolean star = player == starPlayer;
-            int points = round.getClaimer() == null || starPlayer == round.getClaimer() ? score.getHandPoints() : (player == round.getClaimer() ? 50 : 0);
+            int points = round.getClaimer() != null && starPlayer == round.getClaimer()
+                    ? (player == round.getClaimer() ? 0 : score.getHandPoints())
+                    : round.getClaimer() == null ? score.getHandPoints() : (player == round.getClaimer() ? 50 : 0);
             int before = player.getTotalScore();
             boolean wasEliminated = player.isEliminated();
             player.apply(points, star);
@@ -292,7 +300,7 @@ public class GameService {
     private String randomCode() { StringBuilder code = new StringBuilder(6); for (int i = 0; i < 6; i++) code.append(CODE_ALPHABET.charAt(ThreadLocalRandom.current().nextInt(CODE_ALPHABET.length()))); return code.toString(); }
 
     private GameResponse view(Game game) {
-        return new GameResponse(game.getId(), game.getJoinCode(), game.getCreatedAt(), game.getStatus(), game.getOwnerId(), game.getPlayers().stream().filter(p -> !p.isLeft()).sorted(Comparator.comparingInt(Player::getPlayingOrder)).map(p -> new GameResponse.PlayerResponse(p.getId(), p.getName(), p.getIcon() == null ? "hedgehog" : p.getIcon(), p.getPlayingOrder(), p.getTotalScore(), p.getStarStreak(), p.isEliminated(), p.getEliminationOrder(), p.isBot())).toList(), game.getWinnerId());
+        return new GameResponse(game.getId(), game.getJoinCode(), game.getCreatedAt(), game.getStatus(), game.getOwnerId(), game.getPlayers().stream().filter(p -> !p.isLeft()).sorted(Comparator.comparingInt(Player::getPlayingOrder)).map(p -> new GameResponse.PlayerResponse(p.getId(), p.getName(), p.getEffectiveIcon() == null ? "hedgehog" : p.getEffectiveIcon(), p.getPlayingOrder(), p.getTotalScore(), p.getStarStreak(), p.isEliminated(), p.getEliminationOrder(), p.isBot())).toList(), game.getWinnerId());
     }
 
     private RoundResponse response(Round round) {
