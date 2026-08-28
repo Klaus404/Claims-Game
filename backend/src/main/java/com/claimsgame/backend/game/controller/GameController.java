@@ -7,6 +7,7 @@ import com.claimsgame.backend.game.dto.GameResponse;
 import com.claimsgame.backend.game.dto.JoinGameRequest;
 import com.claimsgame.backend.game.dto.RoundResponse;
 import com.claimsgame.backend.game.dto.UpdateIconRequest;
+import com.claimsgame.backend.game.dto.ReorderPlayersRequest;
 import com.claimsgame.backend.game.service.GameService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -51,6 +52,9 @@ public class GameController {
 
     @DeleteMapping("/{code}/players/{playerId}")
     public GameResponse removeLobbyPlayer(@PathVariable String code, @PathVariable UUID playerId, @RequestHeader("X-Player-Id") UUID ownerId) { return service.removeLobbyPlayer(code, ownerId, playerId); }
+
+    @PutMapping("/{code}/players/order")
+    public GameResponse reorderPlayers(@PathVariable String code, @RequestHeader("X-Player-Id") UUID ownerId, @Valid @RequestBody ReorderPlayersRequest request) { return service.reorderPlayers(code, ownerId, request); }
 
     @PostMapping("/{code}/restart")
     public GameResponse restart(@PathVariable String code, @RequestHeader("X-Player-Id") UUID ownerId) { return service.restart(code, ownerId); }

@@ -15,6 +15,7 @@ interface PlayerView {
   eliminated: boolean;
   eliminationOrder: number | null;
   icon: string;
+  playingOrder: number;
   bot: boolean;
   iconLocked: boolean;
 }
@@ -43,7 +44,7 @@ export class App implements OnDestroy {
   readonly spectating = signal(false);
   private syncing = false;
   private readonly syncTimer = window.setInterval(() => this.syncGame(), 3000);
-  readonly players = computed<PlayerView[]>(() => (this.game()?.players ?? []).map((player, index) => ({
+  readonly players = computed<PlayerView[]>(() => (this.game()?.players ?? []).slice().sort((a, b) => a.playingOrder - b.playingOrder).map((player, index) => ({
     id: player.id,
     name: player.name,
     initials: player.name.slice(0, 2).toUpperCase(),
@@ -55,13 +56,16 @@ export class App implements OnDestroy {
     eliminated: player.eliminated,
     eliminationOrder: player.eliminationOrder,
     icon: player.icon,
+    playingOrder: player.playingOrder,
     bot: player.bot,
     iconLocked: player.name.trim().toLowerCase() === 'gaulea',
   })));
   readonly round = computed(() => (this.history().length || 0) + 1);
   readonly isLobby = computed(() => this.game()?.status === 'WAITING');
   readonly isOwner = computed(() => this.game()?.ownerId === this.currentPlayerId());
+  readonly activePlayers = computed(() => this.players().filter(player => !player.eliminated));
   readonly winnerName = computed(() => this.players().find(player => player.id === this.game()?.winnerId)?.name ?? 'The table winner');
+  readonly dealerName = computed(() => this.players().find(player => player.id === this.game()?.dealerId)?.name ?? 'Not chosen');
   readonly currentPlayer = computed(() => this.players().find(player => player.id === this.currentPlayerId()));
   readonly isEliminated = computed(() => this.currentPlayer()?.eliminated ?? false);
   readonly leaderboard = computed(() => this.players().slice().sort((a, b) => {
@@ -105,7 +109,7 @@ export class App implements OnDestroy {
     const game = this.game();
     if (!game || !confirm('End this game? The active player with the lowest score will win.')) return;
     await this.request(() => firstValueFrom(this.api.end(game.joinCode)));
-    this.message.set('Game ended. The winner has been recorded.');
+    if (this.game()?.status === 'FINISHED') this.returnHome('Game ended. The winner has been recorded.');
   }
 
   async restartGame(): Promise<void> {
@@ -128,6 +132,17 @@ export class App implements OnDestroy {
     const icons = ['hedgehog', 'sloth', 'tiger', 'parrot', 'elephant', 'fox', 'chick', 'dog', 'turtle', 'lion', 'icons8-bear-94', 'icons8-koi-fish-94', 'icons8-corgi-94', 'icons8-cockroach-94'];
     const icon = icons[(icons.indexOf(player.icon) + 1) % icons.length];
     await this.request(() => firstValueFrom(this.api.updateIcon(game.joinCode, player.id, icon)));
+  }
+
+  async reorderPlayer(playerId: string, direction: -1 | 1): Promise<void> {
+    const game = this.game();
+    if (!game || !this.isOwner() || !this.isLobby() || this.loading()) return;
+    const playerIds = this.players().map(player => player.id);
+    const index = playerIds.indexOf(playerId);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= playerIds.length) return;
+    [playerIds[index], playerIds[nextIndex]] = [playerIds[nextIndex], playerIds[index]];
+    await this.request(() => firstValueFrom(this.api.reorderPlayers(game.joinCode, playerIds)));
   }
 
   async leaveRoom(): Promise<void> {
@@ -191,6 +206,12 @@ export class App implements OnDestroy {
     this.hands.update(hands => ({ ...hands, [id]: value }));
   }
 
+  focusHandInput(event: FocusEvent): void {
+    const input = event.target as HTMLInputElement;
+    if (input.value === '0') input.value = '';
+    input.select();
+  }
+
   toggleClaim(): void { this.claimant.update(current => current ? null : this.currentPlayerId() || this.players()[0]?.id || null); }
   setClaimant(event: Event): void { this.claimant.set((event.target as HTMLSelectElement).value); }
 
@@ -238,10 +259,14 @@ export class App implements OnDestroy {
     if (this.syncing || this.loading()) return;
     const code = this.game()?.joinCode ?? localStorage.getItem('claims-game-code');
     if (!code) return;
+    const previousStatus = this.game()?.status;
 
     this.syncing = true;
     try {
       await this.refresh(code);
+      if (previousStatus === 'IN_PROGRESS' && this.game()?.status === 'FINISHED') {
+        this.returnHome('The game has ended. You have been returned to the home screen.');
+      }
     } catch {
       // Background sync retries on the next interval without interrupting the current UI.
     } finally {
@@ -267,6 +292,19 @@ export class App implements OnDestroy {
     const response = error as { error?: { error?: string; message?: string } | string };
     const detail = typeof response.error === 'string' ? response.error : response.error?.error ?? response.error?.message;
     this.error.set(detail ?? 'Could not reach the game server.');
+  }
+
+  private returnHome(message: string): void {
+    localStorage.removeItem('claims-game-code');
+    localStorage.removeItem('claims-player-id');
+    this.currentPlayerId.set('');
+    this.game.set(null);
+    this.history.set([]);
+    this.hands.set({});
+    this.claimant.set(null);
+    this.editingLastRound.set(false);
+    this.spectating.set(false);
+    this.message.set(message);
   }
 
 }

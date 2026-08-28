@@ -28,6 +28,7 @@ public class Game {
     private GameStatus status;
     private UUID ownerId;
     private UUID winnerId;
+    private UUID dealerId;
 
     @OneToMany(mappedBy = "game", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Player> players = new ArrayList<>();
@@ -50,11 +51,13 @@ public class Game {
     public GameStatus getStatus() { return status; }
     public UUID getOwnerId() { return ownerId; }
     public UUID getWinnerId() { return winnerId; }
+    public UUID getDealerId() { return dealerId; }
     public List<Player> getPlayers() { return players; }
     public List<Round> getRounds() { return rounds; }
     public void setStatus(GameStatus status) { this.status = status; }
     public void setOwnerId(UUID ownerId) { this.ownerId = ownerId; }
     public void setWinnerId(UUID winnerId) { this.winnerId = winnerId; }
+    public void setDealerId(UUID dealerId) { this.dealerId = dealerId; }
 
     public void addPlayer(Player player) {
         player.setGame(this);

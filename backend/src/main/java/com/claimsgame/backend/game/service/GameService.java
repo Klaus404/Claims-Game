@@ -9,6 +9,7 @@ import com.claimsgame.backend.game.dto.GameResponse;
 import com.claimsgame.backend.game.dto.JoinGameRequest;
 import com.claimsgame.backend.game.dto.RoundResponse;
 import com.claimsgame.backend.game.dto.UpdateIconRequest;
+import com.claimsgame.backend.game.dto.ReorderPlayersRequest;
 import com.claimsgame.backend.game.model.Game;
 import com.claimsgame.backend.game.model.GameStatus;
 import com.claimsgame.backend.game.model.Player;
@@ -68,6 +69,7 @@ public class GameService {
         authorizeOwner(game, ownerId);
         if (game.getStatus() != GameStatus.WAITING) throw new IllegalStateException("Game cannot be started");
         if (game.getPlayers().size() < 2) throw new IllegalStateException("At least 2 players are required");
+        game.setDealerId(game.getPlayers().stream().min(Comparator.comparingInt(Player::getPlayingOrder)).orElseThrow().getId());
         game.setStatus(GameStatus.IN_PROGRESS);
         return view(game);
     }
@@ -129,6 +131,26 @@ public class GameService {
     }
 
     @Transactional
+    public GameResponse reorderPlayers(String code, UUID ownerId, ReorderPlayersRequest request) {
+        Game game = getGame(code);
+        authorizeOwner(game, ownerId);
+        if (game.getStatus() != GameStatus.WAITING) throw new IllegalStateException("Players can only be reordered in the lobby");
+        List<Player> players = game.getPlayers().stream().filter(p -> !p.isLeft()).toList();
+        if (request.playerIds() == null || request.playerIds().size() != players.size()
+                || request.playerIds().stream().distinct().count() != players.size()
+                || players.stream().anyMatch(player -> !request.playerIds().contains(player.getId()))) {
+            throw new IllegalArgumentException("The order must contain every player exactly once");
+        }
+        // Use temporary values first because playing_order is unique per game.
+        players.forEach(player -> player.setPlayingOrder(-player.getPlayingOrder() - 1));
+        games.saveAndFlush(game);
+        for (int index = 0; index < request.playerIds().size(); index++) {
+            player(game, request.playerIds().get(index)).setPlayingOrder(index);
+        }
+        return view(games.saveAndFlush(game));
+    }
+
+    @Transactional
     public GameResponse restart(String code, UUID ownerId) {
         Game game = getGame(code);
         authorizeOwner(game, ownerId);
@@ -139,6 +161,7 @@ public class GameService {
             player.setEliminationOrder(null);
         });
         game.setWinnerId(null);
+        game.setDealerId(null);
         game.setStatus(GameStatus.WAITING);
         return view(games.saveAndFlush(game));
     }
@@ -185,7 +208,7 @@ public class GameService {
             throw new IllegalArgumentException("Claims can only be declared below 10 points");
         }
         int nextRoundNumber = game.getRounds().stream().mapToInt(Round::getRoundNumber).max().orElse(0) + 1;
-        Round round = new Round(nextRoundNumber, claimer);
+        Round round = new Round(nextRoundNumber, claimer, game.getDealerId());
         request.scores().forEach(score -> round.addScore(new RoundPlayerScore(player(game, score.playerId()), score.handPoints())));
         game.addRound(round);
         rounds.saveAndFlush(round);
@@ -230,6 +253,8 @@ public class GameService {
         } else if (activePlayers(game).size() <= 1) {
             game.setWinnerId(activePlayers(game).stream().findFirst().map(Player::getId).orElse(null));
             game.setStatus(GameStatus.FINISHED);
+        } else {
+            game.setDealerId(nextDealer(game, round.getDealerId()).getId());
         }
         games.save(game);
         return response(round);
@@ -244,6 +269,7 @@ public class GameService {
         game.getRounds().remove(round);
         rounds.delete(round);
         game.setWinnerId(null);
+        game.setDealerId(round.getDealerId());
         game.setStatus(GameStatus.IN_PROGRESS);
         return view(games.saveAndFlush(game));
     }
@@ -301,7 +327,17 @@ public class GameService {
     private String randomCode() { StringBuilder code = new StringBuilder(6); for (int i = 0; i < 6; i++) code.append(CODE_ALPHABET.charAt(ThreadLocalRandom.current().nextInt(CODE_ALPHABET.length()))); return code.toString(); }
 
     private GameResponse view(Game game) {
-        return new GameResponse(game.getId(), game.getJoinCode(), game.getCreatedAt(), game.getStatus(), game.getOwnerId(), game.getPlayers().stream().filter(p -> !p.isLeft()).sorted(Comparator.comparingInt(Player::getPlayingOrder)).map(p -> new GameResponse.PlayerResponse(p.getId(), p.getName(), p.getEffectiveIcon() == null ? "hedgehog" : p.getEffectiveIcon(), p.getPlayingOrder(), p.getTotalScore(), p.getStarStreak(), p.isEliminated(), p.getEliminationOrder(), p.isBot())).toList(), game.getWinnerId());
+        return new GameResponse(game.getId(), game.getJoinCode(), game.getCreatedAt(), game.getStatus(), game.getOwnerId(), game.getPlayers().stream().filter(p -> !p.isLeft()).sorted(Comparator.comparingInt(Player::getPlayingOrder)).map(p -> new GameResponse.PlayerResponse(p.getId(), p.getName(), p.getEffectiveIcon() == null ? "hedgehog" : p.getEffectiveIcon(), p.getPlayingOrder(), p.getTotalScore(), p.getStarStreak(), p.isEliminated(), p.getEliminationOrder(), p.isBot())).toList(), game.getWinnerId(), game.getDealerId());
+    }
+
+    private Player nextDealer(Game game, UUID currentDealerId) {
+        List<Player> active = activePlayers(game).stream().sorted(Comparator.comparingInt(Player::getPlayingOrder)).toList();
+        int currentOrder = game.getPlayers().stream()
+                .filter(player -> player.getId().equals(currentDealerId))
+                .mapToInt(Player::getPlayingOrder)
+                .findFirst()
+                .orElse(Integer.MAX_VALUE);
+        return active.stream().filter(player -> player.getPlayingOrder() > currentOrder).findFirst().orElse(active.getFirst());
     }
 
     private RoundResponse response(Round round) {

@@ -22,6 +22,7 @@ export interface GameResponse {
   ownerId: string;
   players: PlayerResponse[];
   winnerId: string | null;
+  dealerId: string | null;
 }
 
 export interface RoundScoreResponse {
@@ -78,6 +79,10 @@ export class GameApiService {
 
   removeLobbyPlayer(code: string, playerId: string): Observable<GameResponse> {
     return this.http.delete<GameResponse>(`/api/games/${encodeURIComponent(code)}/players/${playerId}`, { headers: { 'X-Player-Id': this.playerId() } });
+  }
+
+  reorderPlayers(code: string, playerIds: string[]): Observable<GameResponse> {
+    return this.http.put<GameResponse>(`/api/games/${encodeURIComponent(code)}/players/order`, { playerIds }, { headers: { 'X-Player-Id': this.playerId() } });
   }
 
   restart(code: string): Observable<GameResponse> {

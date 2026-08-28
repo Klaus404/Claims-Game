@@ -26,3 +26,7 @@
 
 .player-avatar img, .mini-avatar img, .avatar img, .leaderboard-avatar img { width: 72%; height: 72%; object-fit: contain; }
 .leaderboard-player { display: flex; align-items: center; gap: 10px; }.leaderboard-avatar { width: 30px; height: 30px; background: var(--gold); border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto; }
+.game-code-block strong, .join-row input { text-transform: none; }
+.randomize-icon { display: inline-grid; place-items: center; min-width: 32px; min-height: 32px; flex: 0 0 auto; visibility: visible; opacity: 1; }
+.order-player { color: var(--muted); background: transparent; border: 0; cursor: pointer; padding: 4px; }.order-player:disabled { opacity: .25; cursor: default; }.order-player:not(:disabled):hover { color: var(--gold); }.dealer-note { color: var(--muted); font-size: 11px; margin: 0 0 18px; }.dealer-note strong { color: var(--gold); }
+.history-panel { max-height: min(60vh, 620px); overflow-y: auto; }

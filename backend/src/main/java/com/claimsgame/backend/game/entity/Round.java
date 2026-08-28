@@ -25,6 +25,7 @@ public class Round {
 
     private int roundNumber;
     private Instant createdAt;
+    private UUID dealerId;
 
     @Enumerated(EnumType.STRING)
     private RoundStatus status;
@@ -42,8 +43,13 @@ public class Round {
     }
 
     public Round(int roundNumber, Player claimer) {
+        this(roundNumber, claimer, null);
+    }
+
+    public Round(int roundNumber, Player claimer, UUID dealerId) {
         this.roundNumber = roundNumber;
         this.claimer = claimer;
+        this.dealerId = dealerId;
         this.createdAt = Instant.now();
         this.status = RoundStatus.OPEN;
     }
@@ -51,6 +57,7 @@ public class Round {
     public UUID getId() { return id; }
     public int getRoundNumber() { return roundNumber; }
     public Instant getCreatedAt() { return createdAt; }
+    public UUID getDealerId() { return dealerId; }
     public RoundStatus getStatus() { return status; }
     public Game getGame() { return game; }
     public Player getClaimer() { return claimer; }
