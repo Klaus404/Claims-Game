@@ -18,10 +18,12 @@ public class Player {
     private UUID id;
 
     private String name;
+    private String icon;
     private int playingOrder;
     private int totalScore;
     private int starStreak;
     private boolean eliminated;
+    private boolean leftGame;
     private Integer eliminationOrder;
     private boolean bot;
 
@@ -34,6 +36,7 @@ public class Player {
     public Player(String name, int playingOrder) {
         this.name = name;
         this.playingOrder = playingOrder;
+        this.icon = defaultIcon(playingOrder);
     }
 
     public Player(String name, int playingOrder, boolean bot) {
@@ -43,11 +46,15 @@ public class Player {
 
     public UUID getId() { return id; }
     public String getName() { return name; }
+    public String getIcon() { return icon; }
     public int getPlayingOrder() { return playingOrder; }
     public void setPlayingOrder(int playingOrder) { this.playingOrder = playingOrder; }
+    public void setIcon(String icon) { this.icon = icon; }
     public int getTotalScore() { return totalScore; }
     public int getStarStreak() { return starStreak; }
     public boolean isEliminated() { return eliminated; }
+    public boolean isLeft() { return leftGame; }
+    public void setLeft(boolean left) { this.leftGame = left; }
     public Integer getEliminationOrder() { return eliminationOrder; }
     public void setEliminationOrder(Integer eliminationOrder) { this.eliminationOrder = eliminationOrder; }
     public void setEliminated(boolean eliminated) { this.eliminated = eliminated; }
@@ -73,5 +80,9 @@ public class Player {
         this.totalScore = totalScore;
         this.starStreak = starStreak;
         this.eliminated = eliminated;
+    }
+
+    private static String defaultIcon(int playingOrder) {
+        return new String[]{"hedgehog", "sloth", "tiger", "parrot", "elephant", "fox", "chick", "dog", "turtle", "lion", "icons8-bear-94", "icons8-koi-fish-94", "icons8-corgi-94", "icons8-cockroach-94"}[playingOrder % 14];
     }
 }

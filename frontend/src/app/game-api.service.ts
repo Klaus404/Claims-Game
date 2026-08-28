@@ -5,6 +5,7 @@ import { Observable } from 'rxjs';
 export interface PlayerResponse {
   id: string;
   name: string;
+  icon: string;
   playingOrder: number;
   totalScore: number;
   starStreak: number;
@@ -73,6 +74,18 @@ export class GameApiService {
 
   leave(code: string): Observable<GameResponse> {
     return this.http.post<GameResponse>(`/api/games/${encodeURIComponent(code)}/leave`, {}, { headers: { 'X-Player-Id': this.playerId() } });
+  }
+
+  removeLobbyPlayer(code: string, playerId: string): Observable<GameResponse> {
+    return this.http.delete<GameResponse>(`/api/games/${encodeURIComponent(code)}/players/${playerId}`, { headers: { 'X-Player-Id': this.playerId() } });
+  }
+
+  restart(code: string): Observable<GameResponse> {
+    return this.http.post<GameResponse>(`/api/games/${encodeURIComponent(code)}/restart`, {}, { headers: { 'X-Player-Id': this.playerId() } });
+  }
+
+  updateIcon(code: string, playerId: string, icon: string): Observable<GameResponse> {
+    return this.http.put<GameResponse>(`/api/games/${encodeURIComponent(code)}/players/${playerId}/icon`, { icon }, { headers: { 'X-Player-Id': playerId } });
   }
 
   createRound(code: string, scores: { playerId: string; handPoints: number }[], claimerId: string | null): Observable<RoundResponse> {

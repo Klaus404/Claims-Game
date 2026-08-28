@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public record GameResponse(UUID id, String joinCode, Instant createdAt, GameStatus status, UUID ownerId,
                            List<PlayerResponse> players, UUID winnerId) {
-        public record PlayerResponse(UUID id, String name, int playingOrder, int totalScore,
+        public record PlayerResponse(UUID id, String name, String icon, int playingOrder, int totalScore,
                                   int starStreak, boolean eliminated, Integer eliminationOrder, boolean bot) {
     }
 }

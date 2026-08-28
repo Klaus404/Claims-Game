@@ -6,6 +6,7 @@ import com.claimsgame.backend.game.dto.AddBotRequest;
 import com.claimsgame.backend.game.dto.GameResponse;
 import com.claimsgame.backend.game.dto.JoinGameRequest;
 import com.claimsgame.backend.game.dto.RoundResponse;
+import com.claimsgame.backend.game.dto.UpdateIconRequest;
 import com.claimsgame.backend.game.service.GameService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -47,6 +48,15 @@ public class GameController {
 
     @PostMapping("/{code}/leave")
     public GameResponse leave(@PathVariable String code, @RequestHeader("X-Player-Id") UUID playerId) { return service.leave(code, playerId); }
+
+    @DeleteMapping("/{code}/players/{playerId}")
+    public GameResponse removeLobbyPlayer(@PathVariable String code, @PathVariable UUID playerId, @RequestHeader("X-Player-Id") UUID ownerId) { return service.removeLobbyPlayer(code, ownerId, playerId); }
+
+    @PostMapping("/{code}/restart")
+    public GameResponse restart(@PathVariable String code, @RequestHeader("X-Player-Id") UUID ownerId) { return service.restart(code, ownerId); }
+
+    @PutMapping("/{code}/players/{playerId}/icon")
+    public GameResponse updateIcon(@PathVariable String code, @PathVariable UUID playerId, @RequestHeader("X-Player-Id") UUID requestPlayerId, @Valid @RequestBody UpdateIconRequest request) { return service.updateIcon(code, playerId, requestPlayerId, request); }
 
     @PostMapping("/{code}/bots")
     public GameResponse addBot(@PathVariable String code, @RequestHeader("X-Player-Id") UUID ownerId, @Valid @RequestBody AddBotRequest request) { return service.addBot(code, ownerId, request); }

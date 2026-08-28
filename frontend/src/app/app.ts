@@ -14,6 +14,7 @@ interface PlayerView {
   current: boolean;
   eliminated: boolean;
   eliminationOrder: number | null;
+  icon: string;
   bot: boolean;
 }
 
@@ -52,6 +53,7 @@ export class App implements OnDestroy {
     current: player.id === this.currentPlayerId(),
     eliminated: player.eliminated,
     eliminationOrder: player.eliminationOrder,
+    icon: player.icon,
     bot: player.bot,
   })));
   readonly round = computed(() => (this.history().length || 0) + 1);
@@ -102,6 +104,28 @@ export class App implements OnDestroy {
     if (!game || !confirm('End this game? The active player with the lowest score will win.')) return;
     await this.request(() => firstValueFrom(this.api.end(game.joinCode)));
     this.message.set('Game ended. The winner has been recorded.');
+  }
+
+  async restartGame(): Promise<void> {
+    const game = this.game();
+    if (!game || !this.isOwner() || !confirm('Restart this game with the same players?')) return;
+    await this.request(() => firstValueFrom(this.api.restart(game.joinCode)));
+    this.hands.set({}); this.claimant.set(null); this.editingLastRound.set(false); this.spectating.set(false);
+  }
+
+  async removeLobbyPlayer(playerId: string, name: string): Promise<void> {
+    const game = this.game();
+    if (!game || !this.isOwner() || !confirm(`Remove ${name} from the lobby?`)) return;
+    await this.request(() => firstValueFrom(this.api.removeLobbyPlayer(game.joinCode, playerId)));
+  }
+
+  async randomizeIcon(): Promise<void> {
+    const game = this.game();
+    const player = this.currentPlayer();
+    if (!game || !player || !this.isLobby() || this.loading()) return;
+    const icons = ['hedgehog', 'sloth', 'tiger', 'parrot', 'elephant', 'fox', 'chick', 'dog', 'turtle', 'lion', 'icons8-bear-94', 'icons8-koi-fish-94', 'icons8-corgi-94', 'icons8-cockroach-94'];
+    const icon = icons[(icons.indexOf(player.icon) + 1) % icons.length];
+    await this.request(() => firstValueFrom(this.api.updateIcon(game.joinCode, player.id, icon)));
   }
 
   async leaveRoom(): Promise<void> {

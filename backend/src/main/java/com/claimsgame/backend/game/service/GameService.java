@@ -8,6 +8,7 @@ import com.claimsgame.backend.game.dto.CreateRoundRequest;
 import com.claimsgame.backend.game.dto.GameResponse;
 import com.claimsgame.backend.game.dto.JoinGameRequest;
 import com.claimsgame.backend.game.dto.RoundResponse;
+import com.claimsgame.backend.game.dto.UpdateIconRequest;
 import com.claimsgame.backend.game.model.Game;
 import com.claimsgame.backend.game.model.GameStatus;
 import com.claimsgame.backend.game.model.Player;
@@ -25,6 +26,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class GameService {
     private static final String CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private static final java.util.Set<String> ICONS = java.util.Set.of("hedgehog", "sloth", "tiger", "parrot", "elephant", "fox", "chick", "dog", "turtle", "lion", "icons8-bear-94", "icons8-koi-fish-94", "icons8-corgi-94", "icons8-cockroach-94");
     private final GameRepository games;
     private final RoundRepository rounds;
 
@@ -106,13 +108,50 @@ public class GameService {
             if (wasOwner) game.setOwnerId(game.getPlayers().stream().findFirst().map(Player::getId).orElse(null));
             return view(game);
         }
+        leaving.setLeft(true);
         leaving.setEliminated(true);
         if (wasOwner) game.setOwnerId(activePlayers(game).stream().findFirst().map(Player::getId).orElse(null));
         if (game.getStatus() == GameStatus.IN_PROGRESS && activePlayers(game).size() <= 1) {
             game.setWinnerId(activePlayers(game).stream().findFirst().map(Player::getId).orElse(null));
             game.setStatus(GameStatus.FINISHED);
         }
-        return view(game);
+        return view(games.saveAndFlush(game));
+    }
+
+    @Transactional
+    public GameResponse removeLobbyPlayer(String code, UUID ownerId, UUID playerId) {
+        Game game = getGame(code);
+        authorizeOwner(game, ownerId);
+        if (game.getStatus() != GameStatus.WAITING) throw new IllegalStateException("Players can only be removed from the lobby");
+        if (playerId.equals(game.getOwnerId())) throw new IllegalArgumentException("The owner cannot be removed");
+        game.removePlayer(player(game, playerId));
+        return view(games.saveAndFlush(game));
+    }
+
+    @Transactional
+    public GameResponse restart(String code, UUID ownerId) {
+        Game game = getGame(code);
+        authorizeOwner(game, ownerId);
+        game.getRounds().forEach(round -> rounds.delete(round));
+        game.getRounds().clear();
+        game.getPlayers().stream().filter(player -> !player.isLeft()).forEach(player -> {
+            player.restore(0, 0, false);
+            player.setEliminationOrder(null);
+        });
+        game.setWinnerId(null);
+        game.setStatus(GameStatus.WAITING);
+        return view(games.saveAndFlush(game));
+    }
+
+    @Transactional
+    public GameResponse updateIcon(String code, UUID playerId, UUID requestPlayerId, UpdateIconRequest request) {
+        if (!playerId.equals(requestPlayerId)) throw new IllegalStateException("You can only change your own icon");
+        Game game = getGame(code);
+        if (game.getStatus() != GameStatus.WAITING) throw new IllegalStateException("Icons can only be changed in the lobby");
+        if (!ICONS.contains(request.icon())) throw new IllegalArgumentException("Unknown player icon");
+        Player player = player(game, playerId);
+        player.setIcon(request.icon());
+        return view(games.saveAndFlush(game));
     }
 
     @Transactional
@@ -228,7 +267,7 @@ public class GameService {
     }
 
     private void authorizeOwner(Game game, UUID ownerId) { if (!ownerId.equals(game.getOwnerId())) throw new IllegalStateException("Only the game owner can do this"); }
-    private List<Player> activePlayers(Game game) { return game.getPlayers().stream().filter(p -> !p.isEliminated()).toList(); }
+    private List<Player> activePlayers(Game game) { return game.getPlayers().stream().filter(p -> !p.isEliminated() && !p.isLeft()).toList(); }
     private Player player(Game game, UUID id) { return game.getPlayers().stream().filter(p -> p.getId().equals(id)).findFirst().orElseThrow(() -> new IllegalArgumentException("Player does not belong to this game")); }
     private Round lastResolvedRound(Game game) { return game.getRounds().stream().filter(r -> r.getStatus() == RoundStatus.RESOLVED).max(Comparator.comparingInt(Round::getRoundNumber)).orElseThrow(() -> new IllegalStateException("There is no resolved round to edit")); }
     private void restoreRound(Round round) {
@@ -253,7 +292,7 @@ public class GameService {
     private String randomCode() { StringBuilder code = new StringBuilder(6); for (int i = 0; i < 6; i++) code.append(CODE_ALPHABET.charAt(ThreadLocalRandom.current().nextInt(CODE_ALPHABET.length()))); return code.toString(); }
 
     private GameResponse view(Game game) {
-        return new GameResponse(game.getId(), game.getJoinCode(), game.getCreatedAt(), game.getStatus(), game.getOwnerId(), game.getPlayers().stream().sorted(Comparator.comparingInt(Player::getPlayingOrder)).map(p -> new GameResponse.PlayerResponse(p.getId(), p.getName(), p.getPlayingOrder(), p.getTotalScore(), p.getStarStreak(), p.isEliminated(), p.getEliminationOrder(), p.isBot())).toList(), game.getWinnerId());
+        return new GameResponse(game.getId(), game.getJoinCode(), game.getCreatedAt(), game.getStatus(), game.getOwnerId(), game.getPlayers().stream().filter(p -> !p.isLeft()).sorted(Comparator.comparingInt(Player::getPlayingOrder)).map(p -> new GameResponse.PlayerResponse(p.getId(), p.getName(), p.getIcon() == null ? "hedgehog" : p.getIcon(), p.getPlayingOrder(), p.getTotalScore(), p.getStarStreak(), p.isEliminated(), p.getEliminationOrder(), p.isBot())).toList(), game.getWinnerId());
     }
 
     private RoundResponse response(Round round) {
