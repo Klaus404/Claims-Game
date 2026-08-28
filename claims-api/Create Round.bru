@@ -1,0 +1,32 @@
+meta {
+  name: Create Round
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/games/{{gameCode}}/rounds
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  X-Player-Id: {{ownerId}}
+}
+
+body:json {
+  {
+    "scores": [
+      {
+        "playerId": "REPLACE_ME",
+        "handPoints": 8
+      },
+      {
+        "playerId": "REPLACE_ME",
+        "handPoints": 12
+      }
+    ],
+    "claimerId": null
+  }
+}

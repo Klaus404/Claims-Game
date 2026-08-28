@@ -1,0 +1,15 @@
+meta {
+  name: End Game
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/games/{{gameCode}}/end
+  body: none
+  auth: none
+}
+
+headers {
+  X-Player-Id: {{ownerId}}
+}

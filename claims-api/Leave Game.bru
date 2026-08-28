@@ -1,0 +1,15 @@
+meta {
+  name: Leave Game
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/games/{{gameCode}}/leave
+  body: none
+  auth: none
+}
+
+headers {
+  X-Player-Id: {{playerId}}
+}

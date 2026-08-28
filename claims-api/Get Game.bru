@@ -1,0 +1,11 @@
+meta {
+  name: Get Game
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/games/{{gameCode}}
+  body: none
+  auth: none
+}

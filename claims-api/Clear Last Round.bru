@@ -1,0 +1,15 @@
+meta {
+  name: Clear Last Round
+  type: http
+  seq: 11
+}
+
+delete {
+  url: {{baseUrl}}/api/games/{{gameCode}}/rounds/last
+  body: none
+  auth: none
+}
+
+headers {
+  X-Player-Id: {{ownerId}}
+}

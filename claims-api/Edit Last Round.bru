@@ -1,0 +1,32 @@
+meta {
+  name: Edit Last Round
+  type: http
+  seq: 12
+}
+
+put {
+  url: {{baseUrl}}/api/games/{{gameCode}}/rounds/last
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  X-Player-Id: {{ownerId}}
+}
+
+body:json {
+  {
+    "scores": [
+      {
+        "playerId": "REPLACE_ME",
+        "handPoints": 8
+      },
+      {
+        "playerId": "REPLACE_ME",
+        "handPoints": 12
+      }
+    ],
+    "claimerId": null
+  }
+}

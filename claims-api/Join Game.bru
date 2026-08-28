@@ -1,0 +1,21 @@
+meta {
+  name: Join Game
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/games/{{gameCode}}/players
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "playerName": "Player 2"
+  }
+}

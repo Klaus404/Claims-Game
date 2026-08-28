@@ -1,0 +1,15 @@
+meta {
+  name: Start Game
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/games/{{gameCode}}/start
+  body: none
+  auth: none
+}
+
+headers {
+  X-Player-Id: {{ownerId}}
+}

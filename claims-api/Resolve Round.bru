@@ -1,0 +1,15 @@
+meta {
+  name: Resolve Round
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/games/{{gameCode}}/rounds/{{roundId}}/resolve
+  body: none
+  auth: none
+}
+
+headers {
+  X-Player-Id: {{ownerId}}
+}
