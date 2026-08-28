@@ -166,7 +166,7 @@ public class GameService {
 
     @Transactional
     public RoundResponse createRound(String code, UUID ownerId, CreateRoundRequest request) {
-        Game game = getGame(code);
+        Game game = getLockedGame(code);
         authorizeOwner(game, ownerId);
         if (game.getStatus() != GameStatus.IN_PROGRESS) throw new IllegalStateException("Game is not in progress");
         if (game.getRounds().stream().anyMatch(r -> r.getStatus() == RoundStatus.OPEN)) {
@@ -184,17 +184,17 @@ public class GameService {
         if (claimer != null && request.scores().stream().filter(s -> s.playerId().equals(claimer.getId())).findFirst().orElseThrow().handPoints() >= 10) {
             throw new IllegalArgumentException("Claims can only be declared below 10 points");
         }
-        Round round = new Round(game.getRounds().size() + 1, claimer);
+        int nextRoundNumber = game.getRounds().stream().mapToInt(Round::getRoundNumber).max().orElse(0) + 1;
+        Round round = new Round(nextRoundNumber, claimer);
         request.scores().forEach(score -> round.addScore(new RoundPlayerScore(player(game, score.playerId()), score.handPoints())));
         game.addRound(round);
-        games.saveAndFlush(game);
         rounds.saveAndFlush(round);
         return response(round);
     }
 
     @Transactional
     public RoundResponse resolve(String code, UUID ownerId, UUID roundId) {
-        Game game = getGame(code);
+        Game game = getLockedGame(code);
         authorizeOwner(game, ownerId);
         Round round = rounds.findByIdAndGameId(roundId, game.getId()).orElseThrow(() -> new IllegalArgumentException("Round not found"));
         if (round.getStatus() != RoundStatus.OPEN) throw new IllegalStateException("Round is already resolved");
@@ -277,6 +277,7 @@ public class GameService {
     private void authorizeOwner(Game game, UUID ownerId) { if (!ownerId.equals(game.getOwnerId())) throw new IllegalStateException("Only the game owner can do this"); }
     private List<Player> activePlayers(Game game) { return game.getPlayers().stream().filter(p -> !p.isEliminated() && !p.isLeft()).toList(); }
     private Player player(Game game, UUID id) { return game.getPlayers().stream().filter(p -> p.getId().equals(id)).findFirst().orElseThrow(() -> new IllegalArgumentException("Player does not belong to this game")); }
+    private Game getLockedGame(String code) { return games.findLockedByJoinCode(code.trim().toUpperCase()).orElseThrow(() -> new IllegalArgumentException("Game not found")); }
     private Round lastResolvedRound(Game game) { return game.getRounds().stream().filter(r -> r.getStatus() == RoundStatus.RESOLVED).max(Comparator.comparingInt(Round::getRoundNumber)).orElseThrow(() -> new IllegalStateException("There is no resolved round to edit")); }
     private void restoreRound(Round round) {
         for (RoundPlayerScore score : round.getScores()) {

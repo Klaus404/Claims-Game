@@ -140,12 +140,16 @@ export class App implements OnDestroy {
   }
 
   async submitRound(): Promise<void> {
-    const game = this.game();
-    if (!game) return;
-    const scores = this.players().filter(player => !player.eliminated).map(player => ({ playerId: player.id, handPoints: player.hand }));
-    if (scores.some(score => score.handPoints < 0)) return this.error.set('Hand points cannot be negative.');
+    if (this.loading()) return;
+    const initialGame = this.game();
+    if (!initialGame) return;
     this.loading.set(true); this.error.set('');
     try {
+      await this.refresh(initialGame.joinCode);
+      const game = this.game();
+      if (!game) return;
+      const scores = this.players().filter(player => !player.eliminated).map(player => ({ playerId: player.id, handPoints: player.hand }));
+      if (scores.some(score => score.handPoints < 0)) return this.error.set('Hand points cannot be negative.');
       const openRound = this.history().find(round => round.status === 'OPEN');
       if (this.editingLastRound()) {
         await firstValueFrom(this.api.editLastRound(game.joinCode, scores, this.claimant()));
