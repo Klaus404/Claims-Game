@@ -53,9 +53,18 @@ public class GameService {
     @Transactional
     public GameResponse join(String code, JoinGameRequest request) {
         Game game = getGame(code);
+        String name = cleanName(request.playerName());
+        if (game.getStatus() == GameStatus.IN_PROGRESS) {
+            Player departed = game.getPlayers().stream()
+                    .filter(player -> player.isLeft() && player.getName().equalsIgnoreCase(name))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException("Game has already started"));
+            departed.setLeft(false);
+            departed.restore(departed.getTotalScore(), departed.getStarStreak(), false);
+            return view(games.saveAndFlush(game));
+        }
         if (game.getStatus() != GameStatus.WAITING) throw new IllegalStateException("Game has already started");
         if (game.getPlayers().size() >= 6) throw new IllegalStateException("Game is full");
-        String name = cleanName(request.playerName());
         if (game.getPlayers().stream().anyMatch(p -> p.getName().equalsIgnoreCase(name))) {
             throw new IllegalArgumentException("Player name is already in use");
         }

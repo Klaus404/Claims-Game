@@ -1,0 +1,1 @@
+ALTER TABLE games ADD COLUMN dealer_id UUID;

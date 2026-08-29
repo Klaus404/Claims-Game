@@ -91,8 +91,10 @@ export class App implements OnDestroy {
 
   async joinGame(): Promise<void> {
     if (!this.playerName().trim() || !this.joinCodeInput().trim()) return this.error.set('Enter your name and game code.');
-    await this.request(() => firstValueFrom(this.api.join(this.joinCodeInput().trim(), this.playerName().trim())), true);
+    await this.request(() => firstValueFrom(this.api.join(this.joinCodeInput().trim().toUpperCase(), this.playerName().trim())), true);
   }
+
+  updateJoinCode(value: string): void { this.joinCodeInput.set(value.toUpperCase()); }
 
   async startGame(): Promise<void> {
     if (this.game()) await this.request(() => firstValueFrom(this.api.start(this.game()!.joinCode)));
